@@ -1,40 +1,47 @@
-name: Build and Release
+name: Generar APK de Release
 
 on:
   push:
-    branches:
-      - main
+    tags:
+      - 'v*.*.*' # Se activa al crear un tag como v1.0.0
 
 jobs:
   build:
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
+      - name: 1. Checkout del código
+        uses: actions/checkout@v4
 
-      - name: Set up Flutter
+      - name: 2. Configurar Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: 3. Configurar Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.10.0'
+          channel: 'stable'
 
-      - name: Install dependencies
+      - name: 4. Decodificar y guardar clave de firma (Keystore)
+        run: |
+          echo "${{ secrets.KEYSTORE_JKS_BASE64 }}" | base64 --decode > android/key.jks
+
+      - name: 5. Crear archivo key.properties
+        run: |
+          echo "storePassword=${{ secrets.STORE_PASSWORD }}" >> android/key.properties
+          echo "keyPassword=${{ secrets.KEY_PASSWORD }}" >> android/key.properties
+          echo "keyAlias=${{ secrets.KEY_ALIAS }}" >> android/key.properties
+          echo "storeFile=android/key.jks" >> android/key.properties
+      
+      - name: 6. Obtener dependencias de Flutter
         run: flutter pub get
 
-      - name: Build APK
+      - name: 7. Construir el APK de release
         run: flutter build apk --release
 
-      - name: Build Web
-        run: flutter build web --release
-
-      - name: Upload APK
-        uses: actions/upload-artifact@v3
+      - name: 8. Subir APK como artefacto
+        uses: actions/upload-artifact@v4
         with:
-          name: app-release.apk
+          name: app-release
           path: build/app/outputs/flutter-apk/app-release.apk
-
-      - name: Upload Web Build
-        uses: actions/upload-artifact@v3
-        with:
-          name: web-build
-          path: build/web
