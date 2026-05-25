@@ -15,7 +15,8 @@ if (keystorePropertiesFile.exists()) {
 
 android {
     namespace = "com.ocr.urltranslator"
-    compileSdk = 36
+    // Cambiado de 36 a 34 para resolver el error lStar
+    compileSdk = 34
     ndkVersion = flutter.ndkVersion
 
     compileOptions {
@@ -43,7 +44,8 @@ android {
     defaultConfig {
         applicationId = "com.ocr.urltranslator"
         minSdk = flutter.minSdkVersion
-        targetSdk = 36
+        // Cambiado de 36 a 34 para que coincida con compileSdk
+        targetSdk = 34
         versionCode = 1
         versionName = "1.0.0"
     }
