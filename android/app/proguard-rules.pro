@@ -13,3 +13,6 @@
 -keep class com.google.mlkit.vision.text.devanagari.** { *; }
 -keep class com.google.mlkit.vision.text.japanese.** { *; }
 -keep class com.google.mlkit.vision.text.korean.** { *; }
+
+# Google Play Core Library rules
+-keep class com.google.android.play.core.** { *; }
