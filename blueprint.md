@@ -1,31 +1,42 @@
-# Blueprint: OCR, Translation, and Text-to-Speech App
+# Visión General
 
-## Overview
+Esta aplicación de Flutter permite a los usuarios extraer texto de imágenes, traducirlo al inglés y escuchar la traducción. La versión actual se ha modificado para aceptar imágenes a través de una URL, eliminando la necesidad de cargar archivos desde el dispositivo.
 
-This document outlines the plan and progress for a Flutter application that integrates Optical Character Recognition (OCR), machine translation, and text-to-speech functionalities. The app will be compatible with Android and Web.
+# Estilo y Diseño
 
-## Implemented Features
+- **Tema:** Se utiliza un tema de Material Design con `Colors.deepPurple` como color principal.
+- **Diseño:** La interfaz se presenta en una sola pantalla con un diseño de lista (`ListView`) que permite el desplazamiento vertical.
+- **Componentes:**
+    - Un `AppBar` con el título de la aplicación.
+    - Un campo de texto (`TextField`) para introducir la URL de la imagen, con un icono de enlace (`Icons.link`).
+    - Un botón (`ElevatedButton`) para iniciar el procesamiento de la imagen.
+    - Un área de vista previa para mostrar la imagen descargada.
+    - Indicadores de carga (`CircularProgressIndicator`) mientras se procesa la imagen.
+    - Tarjetas (`Card`) para mostrar el texto extraído y el texto traducido.
+    - Un botón de reproducción (`IconButton`) para escuchar la traducción.
 
-*   **Image Capture and Loading:**
-    *   Take a photo using the device's camera.
-    *   Select an image from the local gallery.
-    *   Display a preview of the selected image.
-*   **Text Extraction (OCR):**
-    *   Use `google_mlkit_text_recognition` to extract text from the image.
-    *   Display the extracted text in a read-only area.
-*   **Machine Translation:**
-    *   Translate the extracted text to English using the `translator` package.
-    *   Display the translated text below the original.
-*   **Text-to-Speech (TTS):**
-    *   Use `flutter_tts` to read the translated English text aloud.
-    *   Include a button to initiate playback.
+# Características
 
-## Current Plan
+- **Extracción de Texto desde URL:**
+    - Los usuarios pueden pegar una URL de una imagen en un campo de texto.
+    - La aplicación descarga la imagen desde la URL proporcionada.
+- **Reconocimiento de Texto (OCR):**
+    - Utiliza el paquete `google_mlkit_text_recognition` para extraer el texto de la imagen.
+- **Traducción:**
+    - El texto extraído se traduce automáticamente al inglés utilizando el paquete `translator`.
+- **Texto a Voz (TTS):**
+    - Los usuarios pueden escuchar la pronunciación del texto traducido al inglés con el paquete `flutter_tts`.
 
-The current plan is to continue developing the application based on the defined requirements. The immediate next steps are:
+# Plan de Cambios Actual
 
-1.  **Permissions:** Add the necessary permissions for camera and storage access on Android.
-2.  **Web Compatibility:** Ensure all features work correctly on the web platform.
-3.  **UI/UX:** Refine the user interface and add loading indicators for a better user experience.
-4.  **Error Handling:** Implement robust error handling for all asynchronous operations.
-5.  **Code Quality:** Refactor the code to improve its structure and readability.
+El siguiente plan se ha completado en esta sesión:
+
+1.  **Eliminar la Carga de Imágenes Locales:** Se ha eliminado la funcionalidad de seleccionar imágenes de la cámara o la galería, que utilizaba el paquete `image_picker`.
+2.  **Añadir Campo de URL:** Se ha añadido un `TextField` para que los usuarios introduzcan la URL de la imagen.
+3.  **Implementar la Descarga de Imágenes:**
+    - Se ha añadido el paquete `http` para realizar solicitudes de red para descargar la imagen.
+    - Se ha añadido el paquete `path_provider` para guardar temporalmente la imagen descargada en el dispositivo.
+4.  **Actualizar la Lógica de Procesamiento:**
+    - La lógica se ha modificado para que comience con la descarga de la imagen desde la URL.
+    - Una vez descargada, la imagen se procesa para la extracción de texto, traducción y reproducción de audio como en la versión anterior.
+5.  **Limpieza del Proyecto:** Se ha eliminado el paquete `image_picker` del archivo `pubspec.yaml` ya que no se utiliza más.

@@ -1,10 +1,13 @@
 import 'dart:io';
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
-import 'package:image_picker/image_picker.dart';
 import 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart';
 import 'package:translator/translator.dart';
 import 'package:flutter_tts/flutter_tts.dart';
+import 'package:http/http.dart' as http;
+import 'package:path_provider/path_provider.dart';
+import 'package:path/path.dart' as p;
 
 void main() {
   runApp(const MyApp());
@@ -16,10 +19,19 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'OCR App',
+      title: 'OCR from URL',
       theme: ThemeData(
         primarySwatch: Colors.deepPurple,
         visualDensity: VisualDensity.adaptivePlatformDensity,
+        inputDecorationTheme: InputDecorationTheme(
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(8),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderSide: const BorderSide(color: Colors.deepPurple, width: 2),
+            borderRadius: BorderRadius.circular(8),
+          ),
+        ),
       ),
       home: const MyHomePage(),
     );
@@ -34,41 +46,67 @@ class MyHomePage extends StatefulWidget {
 }
 
 class _MyHomePageState extends State<MyHomePage> {
-  XFile? _image;
+  Uint8List? _imageBytes;
   String _text = '';
   String _translatedText = '';
   bool _isProcessing = false;
+  final TextEditingController _urlController = TextEditingController();
 
-  final ImagePicker _picker = ImagePicker();
   final TextRecognizer _textRecognizer = TextRecognizer();
   final GoogleTranslator _translator = GoogleTranslator();
   final FlutterTts _flutterTts = FlutterTts();
 
-  Future<void> _pickImage(ImageSource source) async {
-    try {
-      final pickedFile = await _picker.pickImage(source: source);
-      if (pickedFile != null) {
-        setState(() {
-          _image = pickedFile;
-          _text = '';
-          _translatedText = '';
-        });
-        _processImage();
-      }
-    } catch (e) {
-      _showError('Error al seleccionar la imagen: $e');
+  Future<void> _processImageUrl() async {
+    final imageUrl = _urlController.text.trim();
+    if (imageUrl.isEmpty) {
+      _showError('Por favor, introduce una URL de imagen.');
+      return;
     }
-  }
 
-  Future<void> _processImage() async {
-    if (_image == null) return;
+    final uri = Uri.tryParse(imageUrl);
+    if (uri == null || !uri.hasAbsolutePath || !uri.scheme.startsWith('http')) {
+      _showError('URL no válida.');
+      return;
+    }
 
     setState(() {
       _isProcessing = true;
+      _imageBytes = null;
+      _text = '';
+      _translatedText = '';
     });
 
     try {
-      final inputImage = InputImage.fromFilePath(_image!.path);
+      final response = await http.get(Uri.parse(imageUrl));
+      if (response.statusCode == 200) {
+        final imageBytes = response.bodyBytes;
+        setState(() {
+          _imageBytes = imageBytes;
+        });
+        await _processImageFromBytes(imageBytes);
+      } else {
+        _showError('Error al descargar la imagen: ${response.statusCode}');
+      }
+    } catch (e) {
+      _showError('Error al procesar la URL: $e');
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isProcessing = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _processImageFromBytes(Uint8List imageBytes) async {
+    final tempDir = await getTemporaryDirectory();
+    final tempPath = p.join(tempDir.path, 'temp_image.jpg');
+    final tempFile = File(tempPath);
+
+    try {
+      await tempFile.writeAsBytes(imageBytes);
+
+      final inputImage = InputImage.fromFilePath(tempPath);
       final recognizedText = await _textRecognizer.processImage(inputImage);
 
       setState(() {
@@ -84,9 +122,9 @@ class _MyHomePageState extends State<MyHomePage> {
     } catch (e) {
       _showError('Error al procesar la imagen: $e');
     } finally {
-      setState(() {
-        _isProcessing = false;
-      });
+      if (await tempFile.exists()) {
+        await tempFile.delete();
+      }
     }
   }
 
@@ -100,51 +138,63 @@ class _MyHomePageState extends State<MyHomePage> {
   }
 
   void _showError(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message)),
-    );
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(message), backgroundColor: Colors.red),
+      );
+    }
+  }
+
+  @override
+  void dispose() {
+    _urlController.dispose();
+    _textRecognizer.close();
+    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('OCR App', style: TextStyle(color: Colors.white)),
+        title: const Text('OCR desde URL', style: TextStyle(color: Colors.white)),
         backgroundColor: Colors.deepPurple,
       ),
       body: ListView(
         padding: const EdgeInsets.all(16.0),
         children: [
-          _buildImagePickerButtons(),
+          _buildUrlInput(),
           const SizedBox(height: 20),
           _buildImagePreview(),
           const SizedBox(height: 20),
           _buildProcessingIndicator(),
-          if (_text.isNotEmpty) _buildExtractedText(),
-          if (_translatedText.isNotEmpty) _buildTranslatedText(),
+          if (!_isProcessing && _text.isNotEmpty) _buildExtractedText(),
+          if (!_isProcessing && _translatedText.isNotEmpty) _buildTranslatedText(),
         ],
       ),
     );
   }
 
-  Widget _buildImagePickerButtons() {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+  Widget _buildUrlInput() {
+    return Column(
       children: [
-        ElevatedButton.icon(
-          onPressed: () => _pickImage(ImageSource.camera),
-          icon: const Icon(Icons.camera_alt),
-          label: const Text('Cámara'),
-          style: ElevatedButton.styleFrom(
-            foregroundColor: Colors.white, backgroundColor: Colors.deepPurple,
+        TextField(
+          controller: _urlController,
+          decoration: const InputDecoration(
+            labelText: 'URL de la Imagen',
+            hintText: 'https://example.com/image.png',
+            prefixIcon: Icon(Icons.link),
           ),
+          onSubmitted: (_) => _isProcessing ? null : _processImageUrl(),
         ),
+        const SizedBox(height: 10),
         ElevatedButton.icon(
-          onPressed: () => _pickImage(ImageSource.gallery),
-          icon: const Icon(Icons.photo_library),
-          label: const Text('Galería'),
+          onPressed: _isProcessing ? null : _processImageUrl,
+          icon: const Icon(Icons.cloud_download),
+          label: const Text('Procesar URL'),
           style: ElevatedButton.styleFrom(
-            foregroundColor: Colors.white, backgroundColor: Colors.deepPurple,
+            foregroundColor: Colors.white,
+            backgroundColor: Colors.deepPurple,
+            minimumSize: const Size(double.infinity, 50),
           ),
         ),
       ],
@@ -152,28 +202,48 @@ class _MyHomePageState extends State<MyHomePage> {
   }
 
   Widget _buildImagePreview() {
-    return _image == null
-        ? const Text('No has seleccionado ninguna imagen.', textAlign: TextAlign.center)
-        : Container(
-            decoration: BoxDecoration(
-              border: Border.all(color: Colors.deepPurple, width: 2),
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(8),
-              child: kIsWeb
-                  ? Image.network(_image!.path, fit: BoxFit.cover)
-                  : Image.file(File(_image!.path), fit: BoxFit.cover),
-            ),
-          );
+    if (_imageBytes == null) {
+      return Container(
+        height: 250,
+        decoration: BoxDecoration(
+          border: Border.all(color: Colors.grey.shade400),
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: const Center(
+          child: Text('La imagen se mostrará aquí.', textAlign: TextAlign.center),
+        ),
+      );
+    }
+    return Container(
+      decoration: BoxDecoration(
+        border: Border.all(color: Colors.deepPurple, width: 2),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(8),
+        child: Image.memory(_imageBytes!, fit: BoxFit.cover),
+      ),
+    );
   }
 
   Widget _buildProcessingIndicator() {
-    return _isProcessing ? const Center(child: CircularProgressIndicator()) : Container();
+    return _isProcessing
+        ? const Center(
+            child: Column(
+              children: [
+                CircularProgressIndicator(),
+                SizedBox(height: 10),
+                Text('Procesando...'),
+              ],
+            ),
+          )
+        : Container();
   }
 
   Widget _buildExtractedText() {
     return Card(
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
       margin: const EdgeInsets.symmetric(vertical: 10.0),
       child: Padding(
         padding: const EdgeInsets.all(16.0),
@@ -191,6 +261,8 @@ class _MyHomePageState extends State<MyHomePage> {
 
   Widget _buildTranslatedText() {
     return Card(
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
       margin: const EdgeInsets.symmetric(vertical: 10.0),
       child: Padding(
         padding: const EdgeInsets.all(16.0),
@@ -201,10 +273,13 @@ class _MyHomePageState extends State<MyHomePage> {
             const SizedBox(height: 10),
             SelectableText(_translatedText, textAlign: TextAlign.justify),
             const SizedBox(height: 10),
-            IconButton(
-              onPressed: _speak,
-              icon: const Icon(Icons.volume_up, color: Colors.deepPurple, size: 30),
-              tooltip: 'Escuchar traducción',
+            Align(
+              alignment: Alignment.centerRight,
+              child: IconButton(
+                onPressed: _speak,
+                icon: const Icon(Icons.volume_up, color: Colors.deepPurple, size: 30),
+                tooltip: 'Escuchar traducción',
+              ),
             ),
           ],
         ),
