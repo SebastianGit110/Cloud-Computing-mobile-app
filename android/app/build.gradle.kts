@@ -1,15 +1,16 @@
+import java.util.Properties
+import java.io.FileInputStream
+
 plugins {
     id("com.android.application")
     id("kotlin-android")
-    // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id("dev.flutter.flutter-gradle-plugin")
 }
 
-// Carga las propiedades de la clave desde el archivo key.properties
-val keystorePropertiesFile = rootProject.file("../key.properties")
-val keystoreProperties = java.util.Properties()
+val keystorePropertiesFile = rootProject.file("android/key.properties")
+val keystoreProperties = Properties()
 if (keystorePropertiesFile.exists()) {
-    keystoreProperties.load(java.io.FileInputStream(keystorePropertiesFile))
+    keystoreProperties.load(FileInputStream(keystorePropertiesFile))
 }
 
 android {
@@ -31,7 +32,7 @@ android {
             keyAlias = keystoreProperties["keyAlias"] as String?
             keyPassword = keystoreProperties["keyPassword"] as String?
             storeFile = if (keystoreProperties["storeFile"] != null) {
-                rootProject.file("../" + (keystoreProperties["storeFile"] as String))
+                rootProject.file(keystoreProperties["storeFile"] as String)
             } else {
                 null
             }
@@ -49,7 +50,6 @@ android {
 
     buildTypes {
         release {
-            // Usa la configuración de firma de release
             signingConfig = signingConfigs.getByName("release")
             isMinifyEnabled = true
             isShrinkResources = true
